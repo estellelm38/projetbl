@@ -3,9 +3,15 @@ import numpy as np
 import cv2
 import cv2
 import easyocr
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+#ici on mettra tous les paramètres utilisés dans les différentes fonctions 
 
 class Agent:
     
+    #fonction qui permet de récupérer la couleur dominante de l'image à partir de la teinte
     def get_color(hue_value):
 
         color_thresholds = {
@@ -30,22 +36,22 @@ class Agent:
     def identify_color(self):
         color_image = cv2.imread(self.color_image_path)
 
-        # Error handling for image loading
+        # erreur de chargement de l'image
         if color_image is None:
             print("Erreur lors du chargement de l'image.")
             return None
 
-        # Convert color image to HSV
+        # converti la couleur de l'image en HSV
         color_hsv = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
 
-        # Calculate histogram for hue values
+        # Calcul l'histogramme des valeurs HSV
         hist = cv2.calcHist([color_hsv], [0], None, [256], [0, 256])
 
         # Find the dominant color bin
         dominant_bin = np.argmax(hist)
         dominant_hue = int(dominant_bin * 2)  # Convert bin to hue value
 
-        # Define color thresholds for HSV hue values and their respective names
+        # défini le nom de la couleur en fonction de leur valeur HSV
         color_thresholds = {
             "Rouge": ([0, 32], [160, 170]),
             "Jaune": ([23, 38],),
@@ -63,6 +69,7 @@ class Agent:
 
         return dominant_color_name
     
+    #fonction permettant
     def identify_word():
 
         # Chemin vers l'image
@@ -86,7 +93,61 @@ class Agent:
 
 
     print(identify_word())
-            
+
+# Définition du réseau de neurones
+class SimpleNet(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(SimpleNet, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_size, 1)  # Une seule sortie pour la récompense
+
+    def forward(self, x):
+        out = self.fc1(x)
+        out = self.relu(out)
+        out = self.fc2(out)
+        return out
+
+# Fonction pour comparer deux entrées et attribuer une récompense
+    def comparer_entrees(reseau, mot, couleur, critere, optimizer):
+        # Encodage des mots et couleurs en tensors (représentation numérique)
+        mot_tensor = torch.Tensor([ord(c) for c in mot]).unsqueeze(0)  # Encodage du mot en utilisant les valeurs ASCII
+        couleur_tensor = torch.Tensor([ord(c) for c in couleur]).unsqueeze(0)  # Encodage de la couleur en ASCII
+        
+        # Passage des données dans le réseau de neurones
+        output_mot = reseau(mot_tensor)
+        output_couleur = reseau(couleur_tensor)
+        
+        # Calcul de la perte (loss)
+        loss = critere(output_mot, output_couleur)
+        
+        # Mise à jour des poids du réseau de neurones
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # Calcul de la récompense
+        reward = 1.0 if torch.argmax(output_mot) == torch.argmax(output_couleur) else 0.0
+        
+        return reward
+
+# Définition des paramètres
+input_size = 7  # Taille de l'entrée (nombre de caractères dans le mot ou la couleur)
+hidden_size = 128  # Taille de la couche cachée
+
+# Initialisation du réseau de neurones
+reseau = SimpleNet(input_size, hidden_size)
+critere = nn.MSELoss()  # Utilisation de la Mean Squared Error comme fonction de perte
+optimizer = optim.SGD(reseau.parameters(), lr=0.01)  # Optimiseur Stochastic Gradient Descent (SGD) avec un learning rate de 0.01
+
+# Exemple d'utilisation
+
+mot = identify_word()
+couleur = identify_color()
+
+reward = comparer_entrees(reseau, mot, couleur, critere, optimizer)
+print(f"Récompense: {reward}")
+
 
 
 # grayscale_image_path = '/home/estelle/robotlearn/projetbl/pictures/herbe.jpg'
